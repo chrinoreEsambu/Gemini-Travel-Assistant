@@ -6,6 +6,8 @@ const path = require("path");
 const os = require("os");
 const session = require("express-session");
 const fetch = require("node-fetch");
+const GEMINI_API_KEY = process.env.from the (.envfile);
+const IA_URL = `find it on the gemini api web site`;
 
 dotenv.config();
 
