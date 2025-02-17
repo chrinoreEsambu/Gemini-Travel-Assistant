@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ajouter une destination</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      .form-container {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        width: 90%;
+        max-width: 800px;
+      }
+      .form-container h2 {
+        margin-bottom: 20px;
+        font-size: 24px;
+        text-align: center;
+      }
+      .form-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .form-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        margin: 10px;
+      }
+      .form-group label {
+        font-size: 14px;
+        margin-bottom: 5px;
+        color: #555;
+      }
+      .form-group input,
+      .form-group textarea {
+        padding: 10px;
+        border: 1px solid #000;
+        border-radius: 4px;
+        font-size: 16px;
+        width: 100%;
+        background-color: #f8f9f9;
+      }
+      .form-row .form-group:first-child input {
+        border: none;
+        border-right: 1px solid #000;
+      }
+      .form-row .form-group:nth-child(2) input {
+        border: none;
+        border-right: 1px solid #000;
+      }
+      .form-row .form-group:nth-child(3) input {
+        border: none;
+      }
+      .form-group textarea {
+        resize: vertical;
+      }
+      .form-group button {
+        padding: 10px 20px;
+        background-color: #000;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        width: 100%;
+      }
+      .form-group button:hover {
+        background-color: #141414;
+      }
+      .message-container {
+        margin-top: 20px;
+        border: 1px solid #000;
+        border-radius: 8px;
+        padding: 20px;
+        position: relative;
+      }
+      .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .message-header h3 {
+        margin: 0;
+        font-size: 18px;
+        color: #000;
+      }
+      .message-header button {
+        background-color: #000;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 5px 10px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .message-header button:hover {
+        background-color: #141414;
+      }
+      .message {
+        text-align: center;
+        font-size: 16px;
+        color: black;
+      }
+      .message.success {
+        color: #000000;
+      }
+      .message.error {
+        color: #dc3545;
+      }
+      /* Style du loader */
+      .loader {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #000;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 20px auto;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="form-container">
+      <h2>Ajouter une destination</h2>
+      <form id="destination-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="nom">Ville</label>
+            <input type="text" id="nom" placeholder="Paris" class="un" />
+          </div>
+          <div class="form-group">
+            <label for="pays">Pays</label>
+            <input
+              type="text"
+              id="pays"
+              placeholder="France"
+              class="deux"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="budget">Budget</label>
+            <input type="number" id="budget" placeholder="1200" class="trois" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea
+            id="description"
+            placeholder="Décrivez la destination"
+            required
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <button type="submit">Obtenir des recommandations</button>
+        </div>
+      </form>
+
+      <!-- Conteneur pour la réponse -->
+      <div class="message-container">
+        <div class="message-header">
+          <h3>Proposition</h3>
+          <button id="copy-button">Copier</button>
+        </div>
+        <div id="reponseIA" class="message">
+          <div id="loader" class="loader" style="display: none"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("destination-form")
+        .addEventListener("submit", async function (event) {
+          event.preventDefault();
+
+          // Afficher le loader
+          const loader = document.getElementById("loader");
+          loader.style.display = "block";
+
+          const nom = document.getElementById("nom").value.trim();
+          const pays = document.getElementById("pays").value.trim();
+          const description = document
+            .getElementById("description")
+            .value.trim();
+          const budget = document.getElementById("budget").value.trim();
+
+          try {
+            const response = await fetch(
+              "http://localhost:4000/get-recommendations",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ nom, pays, description, budget }),
+              }
+            );
+
+            const data = await response.json();
+
+            if (response.ok) {
+              document.getElementById("reponseIA").textContent =
+                data.recommandation;
+              document.getElementById("reponseIA").className =
+                "message success";
+            } else {
+              document.getElementById("reponseIA").textContent = data.message;
+              document.getElementById("reponseIA").className = "message error";
+            }
+          } catch (error) {
+            document.getElementById("reponseIA").textContent =
+              "Erreur lors de la communication avec le serveur.";
+            document.getElementById("reponseIA").className = "message error";
+          } finally {
+            // Masquer le loader
+            loader.style.display = "none";
+          }
+        });
+
+      // Fonctionnalité de copie
+      document
+        .getElementById("copy-button")
+        .addEventListener("click", function () {
+          const textToCopy = document.getElementById("reponseIA").textContent;
+          navigator.clipboard
+            .writeText(textToCopy)
+            .then(() => {
+              alert("Réponse copiée !");
+            })
+            .catch(() => {
+              alert("Erreur lors de la copie.");
+            });
+        });
+    </script>
+  </body>
+</html>
