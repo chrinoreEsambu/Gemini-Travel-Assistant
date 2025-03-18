@@ -5,9 +5,6 @@ const dotenv = require("dotenv");
 const path = require("path");
 const os = require("os");
 const session = require("express-session");
-const fetch = require("node-fetch");
-const GEMINI_API_KEY = process.env.from the (.envfile);
-const IA_URL = `find it on the gemini api web site`;
 
 dotenv.config();
 
@@ -16,13 +13,25 @@ const cors = require("cors");
 app.use(cors());
 const port = process.env.PORT || 3000;
 const url = process.env.DB_URI;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+if (!GEMINI_API_KEY) {
+  console.error("❌ Erreur : La clé API Gemini est manquante dans .env !");
+  process.exit(1);
+}
+
+if (!globalThis.fetch) {
+  const fetch = require("node-fetch");
+  globalThis.fetch = fetch;
+}
+
+const IA_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const options = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 };
 
-// Fonction pour obtenir l'IP locale
 const getWifiIP = () => {
   const interfaces = os.networkInterfaces();
   return (
@@ -32,7 +41,6 @@ const getWifiIP = () => {
   );
 };
 
-// Configuration des sessions
 app.use(
   session({
     secret: "votre_secret_key",
@@ -54,11 +62,10 @@ app.use(express.static(path.join(__dirname, "public")));
       console.log(`🚀 Serveur disponible sur http://${iplocal}:${port}`);
     });
   } catch (error) {
-    console.log("❌ Erreur de connexion à MongoDB", error);
+    console.error("❌ Erreur de connexion à MongoDB :", error);
   }
 })();
 
-// Schéma utilisateur
 const userSchema = new mongoose.Schema(
   {
     pseudo: { type: String, required: true },
@@ -78,7 +85,6 @@ const userSchema = new mongoose.Schema(
 );
 const User = mongoose.model("User", userSchema);
 
-// Schéma destination
 const destinationSchema = new mongoose.Schema(
   {
     nom: { type: String, required: true },
@@ -92,38 +98,35 @@ const destinationSchema = new mongoose.Schema(
 );
 const Destination = mongoose.model("Destination", destinationSchema);
 
-// ✅ ENDPOINT : Ajouter une destination et obtenir une recommandation IA avec Gemini
 app.post("/adddestination", async (req, res) => {
   try {
     const { nom, pays, description, attractions, budget_estime } = req.body;
-    const prompt = `Je cherche une destination de voyage avec les informations suivantes donne des information est precise max 100 ligne tu dois toujours proposer des entreprise qui fournise des services ainsi que le lien des site web et aussi des site pour commander et donne aussi les lien des plateforme de service:\nNom: ${nom}\nPays: ${pays}\nDescription: ${description}\nBudget: ${budget_estime} euros.\nQuels conseils de voyage me donneriez-vous ?`;
+
+    if (!nom || !pays || !description || !budget_estime) {
+      return res.status(400).json({ message: "Tous les champs sont requis." });
+    }
+
+    const prompt = `Je cherche une destination de voyage avec les informations suivantes soit vraiment court en donnant des information pertinent et bien sur des info sur comment trouver un logement et les hotels :
+      Nom: ${nom}
+      Pays: ${pays}
+      Description: ${description}
+      Budget: ${budget_estime} euros.
+      Quels conseils de voyage me donneriez-vous ?`;
 
     const response = await fetch(IA_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
+        contents: [{ parts: [{ text: prompt }] }],
       }),
     });
 
     const data = await response.json();
-    console.log("Réponse de Gemini:", data); // Log de la réponse complète pour déboguer
+    console.log("Réponse de Gemini:", data);
 
-    // Debugging de la structure de 'content'
-    if (data?.candidates?.[0]?.content) {
-      console.log("Contenu de la réponse:", data.candidates[0].content);
-    }
-
-    // Modifié pour inspecter et extraire les données
     const recommandation =
-      data?.candidates?.[0]?.content?.text ||
-      "Pas de recommandation disponible"; // Accès à la réponse correcte
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Pas de recommandation disponible.";
 
     const newDestination = new Destination({
       nom,
@@ -132,6 +135,7 @@ app.post("/adddestination", async (req, res) => {
       attractions,
       budget_estime,
     });
+
     await newDestination.save();
 
     res.status(201).json({
@@ -140,12 +144,11 @@ app.post("/adddestination", async (req, res) => {
       recommandation,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Erreur lors de l'ajout de la destination :", error);
     res.status(500).send("Erreur lors de l'ajout de la destination");
   }
 });
 
-// ✅ ENDPOINT : Obtenir une recommandation IA depuis Gemini
 app.post("/get-recommendations", async (req, res) => {
   try {
     const { nom, pays, description, budget } = req.body;
@@ -154,39 +157,24 @@ app.post("/get-recommendations", async (req, res) => {
       return res.status(400).json({ message: "Tous les champs sont requis." });
     }
 
-    const prompt = `Je cherche une destination de voyage avec les détails suivants et donne des detaille court et precise :
-    Nom: ${nom}, 
-    Pays: ${pays}, 
-    Description: ${description}, 
-    Budget: ${budget} euros.
-    Que recommandez-vous à un voyageur ?`;
+    const prompt = `Je cherche une destination de voyage avec ces détails soit vraiment court en donnant des information pertinent et bien sur des info sur comment trouver un logement et les hotels :
+      Nom: ${nom}, Pays: ${pays}, Description: ${description}, Budget: ${budget} euros.
+      Que recommandez-vous ?`;
 
     const response = await fetch(IA_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
+        contents: [{ parts: [{ text: prompt }] }],
       }),
     });
 
     const data = await response.json();
-    console.log("Réponse de Gemini:", data); // Log de la réponse complète pour déboguer
+    console.log("Réponse de Gemini:", data);
 
-    // Debugging de la structure de 'content'
-    if (data?.candidates?.[0]?.content) {
-      console.log("Contenu de la réponse:", data.candidates[0].content);
-    }
-
-    // Modifié pour inspecter et extraire les données
     const recommandation =
       data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Aucune recommandation disponible Mr/M."; // Accès à la réponse correcte
+      "Aucune recommandation disponible.";
 
     res.status(200).json({ recommandation });
   } catch (error) {
@@ -197,7 +185,6 @@ app.post("/get-recommendations", async (req, res) => {
   }
 });
 
-// ✅ ENDPOINTS : Récupérer les destinations
 app.get("/destinations", async (req, res) => {
   try {
     const destinations = await Destination.find();
@@ -208,7 +195,6 @@ app.get("/destinations", async (req, res) => {
   }
 });
 
-// ✅ ENDPOINT : Obtenir une destination par ID
 app.get("/destination/:id", async (req, res) => {
   try {
     const destination = await Destination.findById(req.params.id);
@@ -219,23 +205,6 @@ app.get("/destination/:id", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send("Erreur lors de la récupération de la destination");
-  }
-});
-
-// ✅ ENDPOINT : Rechercher une destination
-app.get("/search", async (req, res) => {
-  try {
-    const query = req.query.query;
-    const results = await Destination.find({
-      $or: [
-        { nom: { $regex: query, $options: "i" } },
-        { pays: { $regex: query, $options: "i" } },
-      ],
-    });
-    res.status(200).json(results);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Erreur lors de la recherche de destination");
   }
 });
 
